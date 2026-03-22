@@ -43,7 +43,6 @@
         $Reader.Close()
         $Writer.Close()
         }
-        }
 
         # FUNCTION WRITE LOG
         function Write-Log {
@@ -59,7 +58,7 @@
             param([Parameter(Mandatory)][string]$URL, [Parameter(Mandatory)][string]$File)
             for ($attempt = 1; $attempt -le 3; $attempt++) {
                 try {
-                    Get-FileFromWeb -URL $URL -File $File
+                    Invoke-WebRequest -Uri $URL -OutFile $File -UseBasicParsing -ErrorAction Stop
                     if ((Test-Path $File) -and (Get-Item $File).Length -gt 0) {
                         Write-Log "Download successful: $File (attempt $attempt)"
                         return $true
@@ -72,8 +71,10 @@
             Write-Log "All 3 download attempts failed for $URL" -Level Warning
             return $false
         }
+        }
 
         Write-Host "youtube.com/FR3" -ForegroundColor White -NoNewline; Write-Host "3THY`n" -ForegroundColor Cyan
+Write-Host "github.com/zrpxo`n" -ForegroundColor Cyan
 
         Write-Host "7Z`n"
         ## explorer "https://www.7-zip.org"
@@ -686,7 +687,7 @@ $StepTwoPs1 = @'
             param([Parameter(Mandatory)][string]$URL, [Parameter(Mandatory)][string]$File)
             for ($attempt = 1; $attempt -le 3; $attempt++) {
                 try {
-                    Get-FileFromWeb -URL $URL -File $File
+                    Invoke-WebRequest -Uri $URL -OutFile $File -UseBasicParsing -ErrorAction Stop
                     if ((Test-Path $File) -and (Get-Item $File).Length -gt 0) {
                         Write-Log "Download successful: $File (attempt $attempt)"
                         return $true
@@ -710,6 +711,12 @@ $StepTwoPs1 = @'
                 [string]$InstallArgs,
                 [int]$ValidSizeKB = 0
             )
+            # Add winget localappdata to path if missing so winget works in StepTwo
+            $wingetPath = "$env:LocalAppData\Microsoft\WindowsApps"
+            if ($env:PATH -notlike "*$wingetPath*") {
+                $env:PATH += ";$wingetPath"
+            }
+
             $installed = $false
             # try winget first
             $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
@@ -4606,14 +4613,29 @@ Stop-Process -Name 'Update' -Force -ErrorAction SilentlyContinue
 
 # install spotify
 # note: spotify installs per-user to %AppData%\Spotify even when run as admin - this is by design
-Install-WithWingetOrDirect -AppName "Spotify" `
-    -WingetID "Spotify.Spotify" `
-    -DirectURL "https://download.scdn.co/SpotifySetup.exe" `
-    -DownloadPath "$env:SystemRoot\Temp\SpotifySetup.exe" `
-    -InstallArgs "/silent"
+$spotifyInstalled = $false
+$wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+if ($wingetCmd) {
+    Write-Log "Attempting winget install: Spotify.Spotify"
+    $wingetProc = Start-Process -Wait -PassThru winget -ArgumentList "install --id Spotify.Spotify --silent --accept-source-agreements --accept-package-agreements" -WindowStyle Hidden -ErrorAction SilentlyContinue
+    if ($wingetProc.ExitCode -eq 0 -or $wingetProc.ExitCode -eq 3010 -or $wingetProc.ExitCode -eq 1638) {
+        Write-Log "Spotify installed successfully via winget"
+        $spotifyInstalled = $true
+    }
+}
+if (-not $spotifyInstalled) {
+    $spotifyOk = Invoke-DownloadWithRetry -URL "https://download.scdn.co/SpotifySetup.exe" -File "$env:SystemRoot\Temp\SpotifySetup.exe"
+    if ($spotifyOk) {
+        Write-Log "Installing Spotify from direct download"
+        # The installer spawns the main app and doesn't exit properly, so we launch without Wait, sleep, then kill
+        Start-Process "$env:SystemRoot\Temp\SpotifySetup.exe" -ArgumentList "/silent" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 15
+    }
+}
 Write-Log "Spotify installs per-user to %AppData%\Spotify - this is expected behavior"
 
-# stop any auto-started spotify process
+# stop any auto-started spotify processes (installer and app)
+Stop-Process -Name 'SpotifySetup' -Force -ErrorAction SilentlyContinue
 Stop-Process -Name 'Spotify' -Force -ErrorAction SilentlyContinue
 
         Write-Host "STEAM`n"
