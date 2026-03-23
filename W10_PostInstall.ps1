@@ -229,9 +229,9 @@ if ($wingetDepsOk) {
 
 # install appx dependencies in order
 $appxDeps = @(
-    "$env:SystemRoot\Temp\WingetDeps\x64\Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+    "$env:SystemRoot\Temp\WingetDeps\x64\Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx",
     "$env:SystemRoot\Temp\WingetDeps\x64\Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
-    "$env:SystemRoot\Temp\WingetDeps\x64\Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
+    "$env:SystemRoot\Temp\WingetDeps\x64\Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx"
 )
 
 foreach ($dep in $appxDeps) {
@@ -259,7 +259,7 @@ foreach ($dep in $appxDeps) {
         Write-Host "WINGET`n"
 
 # download winget msixbundle
-$wingetOk = Invoke-DownloadWithRetry -URL "https://github.com/microsoft/winget-cli/releases/download/v1.29.30-preview/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -File "$env:SystemRoot\Temp\Winget.msixbundle"
+$wingetOk = Invoke-DownloadWithRetry -URL "https://github.com/microsoft/winget-cli/releases/download/v1.28.190/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -File "$env:SystemRoot\Temp\Winget.msixbundle"
 
 if ($wingetOk -and (Test-Path "$env:SystemRoot\Temp\Winget.msixbundle") -and (Get-Item "$env:SystemRoot\Temp\Winget.msixbundle").Length -gt 0) {
     try {
@@ -276,28 +276,6 @@ if ($wingetOk -and (Test-Path "$env:SystemRoot\Temp\Winget.msixbundle") -and (Ge
     }
 } else {
     Write-Log "winget download failed - direct download fallback will be used for apps" -Level Warning
-}
-
-# download ms store dependencies
-$storeDepsOk = Invoke-DownloadWithRetry -URL "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/f6def42b-5d31-4d2a-b6c8-07e410604257?P1=1774230322&P2=404&P3=2&P4=j%2b1QfIgI%2bAmztoH2VXyvD36e1sQYmuq6nxoqJlA3AVxTgwoMPJHq6%2bEieerY41lj4IfkPD1N%2faNo0HO%2baR1edg%3d%3d" -File "$env:SystemRoot\Temp\StoreDeps.msixbundle"
-if ($storeDepsOk -and (Test-Path "$env:SystemRoot\Temp\StoreDeps.msixbundle")) {
-    try {
-        Add-AppxPackage -Path "$env:SystemRoot\Temp\StoreDeps.msixbundle" -ForceApplicationShutdown -ErrorAction SilentlyContinue
-        Write-Log "MS Store dependencies installed"
-    } catch {
-        Write-Log "Failed to install MS Store dependencies" -Level Warning
-    }
-}
-
-# download snipping tool
-$snippingOk = Invoke-DownloadWithRetry -URL "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/3cfbe560-b024-4a6b-8f67-2cdfdf1e4fe2?P1=1774229662&P2=404&P3=2&P4=J8GrWqSRLny0KhY4T%2bOxZGMWJ2ke9KbQ7ph7YIZSlUDoMKxns5MeRTtoZN6bgPOYa%2fxHum2ZJ3Re0gMTnoAWNA%3d%3d" -File "$env:SystemRoot\Temp\SnippingTool.msixbundle"
-if ($snippingOk -and (Test-Path "$env:SystemRoot\Temp\SnippingTool.msixbundle")) {
-    try {
-        Add-AppxPackage -Path "$env:SystemRoot\Temp\SnippingTool.msixbundle" -ForceApplicationShutdown -ErrorAction SilentlyContinue
-        Write-Log "Snipping Tool installed"
-    } catch {
-        Write-Log "Failed to install Snipping Tool" -Level Warning
-    }
 }
 
 # add winget to current session path if not already present
@@ -4623,7 +4601,7 @@ Get-AppxPackage -allusers *Microsoft.OutlookForWindows* | Remove-AppxPackage -Er
 # install discord
 Install-WithWingetOrDirect -AppName "Discord" `
     -WingetID "Discord.Discord" `
-    -DirectURL "https://discord.com/api/download?platform=win&format=exe" `
+    -DirectURL "https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64" `
     -DownloadPath "$env:SystemRoot\Temp\DiscordSetup.exe" `
     -InstallArgs "/S"
 
@@ -4672,6 +4650,18 @@ Install-WithWingetOrDirect -AppName "Steam" `
 # kill steam if it auto-launches after install
 Stop-Process -Name 'steam' -Force -ErrorAction SilentlyContinue
 Stop-Process -Name 'steamwebhelper' -Force -ErrorAction SilentlyContinue
+
+        Write-Host "VENCORD`n"
+
+# download vencord installer to desktop
+$vencordUrl = "https://github.com/Vencord/Installer/releases/latest/download/VencordInstaller.exe"
+$vencordDest = "$env:USERPROFILE\Desktop\VencordInstaller.exe"
+$vencordOk = Invoke-DownloadWithRetry -URL $vencordUrl -File $vencordDest
+if ($vencordOk) {
+    Write-Log "Vencord installer downloaded to Desktop"
+} else {
+    Write-Log "Failed to download Vencord installer" -Level Warning
+}
 
 		Write-Host "DISK CLEANUP`n"
 		## cleanmgr.exe
