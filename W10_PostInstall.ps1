@@ -18,32 +18,6 @@
         # SCRIPT SILENT
         $progresspreference = 'silentlycontinue'
 
-        # FUNCTION FASTER DOWNLOADS
-        function Get-FileFromWeb {
-        param ([Parameter(Mandatory)][string]$URL, [Parameter(Mandatory)][string]$File)
-        try {
-        $Request = [System.Net.HttpWebRequest]::Create($URL)
-        $Response = $Request.GetResponse()
-        if ($Response.StatusCode -eq 401 -or $Response.StatusCode -eq 403 -or $Response.StatusCode -eq 404) { throw "401, 403 or 404 '$URL'." }
-        if ($File -match '^\.\\') { $File = Join-Path (Get-Location -PSProvider 'FileSystem') ($File -Split '^\.')[1] }
-        if ($File -and !(Split-Path $File)) { $File = Join-Path (Get-Location -PSProvider 'FileSystem') $File }
-        if ($File) { $FileDirectory = $([System.IO.Path]::GetDirectoryName($File)); if (!(Test-Path($FileDirectory))) { [System.IO.Directory]::CreateDirectory($FileDirectory) | Out-Null } }
-        [long]$FullSize = $Response.ContentLength
-        [byte[]]$Buffer = new-object byte[] 1048576
-        [long]$Total = [long]$Count = 0
-        $Reader = $Response.GetResponseStream()
-        $Writer = new-object System.IO.FileStream $File, 'Create'
-        do {
-        $Count = $Reader.Read($Buffer, 0, $Buffer.Length)
-        $Writer.Write($Buffer, 0, $Count)
-        $Total += $Count
-        } while ($Count -gt 0)
-        }
-        finally {
-        $Reader.Close()
-        $Writer.Close()
-        }
-
         # FUNCTION WRITE LOG
         function Write-Log {
             param([string]$Message, [ValidateSet('Info','Warning','Error')][string]$Level = 'Info')
@@ -70,6 +44,32 @@
             }
             Write-Log "All 3 download attempts failed for $URL" -Level Warning
             return $false
+        }
+
+        # FUNCTION FASTER DOWNLOADS
+        function Get-FileFromWeb {
+        param ([Parameter(Mandatory)][string]$URL, [Parameter(Mandatory)][string]$File)
+        try {
+        $Request = [System.Net.HttpWebRequest]::Create($URL)
+        $Response = $Request.GetResponse()
+        if ($Response.StatusCode -eq 401 -or $Response.StatusCode -eq 403 -or $Response.StatusCode -eq 404) { throw "401, 403 or 404 '$URL'." }
+        if ($File -match '^\.\\') { $File = Join-Path (Get-Location -PSProvider 'FileSystem') ($File -Split '^\.')[1] }
+        if ($File -and !(Split-Path $File)) { $File = Join-Path (Get-Location -PSProvider 'FileSystem') $File }
+        if ($File) { $FileDirectory = $([System.IO.Path]::GetDirectoryName($File)); if (!(Test-Path($FileDirectory))) { [System.IO.Directory]::CreateDirectory($FileDirectory) | Out-Null } }
+        [long]$FullSize = $Response.ContentLength
+        [byte[]]$Buffer = new-object byte[] 1048576
+        [long]$Total = [long]$Count = 0
+        $Reader = $Response.GetResponseStream()
+        $Writer = new-object System.IO.FileStream $File, 'Create'
+        do {
+        $Count = $Reader.Read($Buffer, 0, $Buffer.Length)
+        $Writer.Write($Buffer, 0, $Count)
+        $Total += $Count
+        } while ($Count -gt 0)
+        }
+        finally {
+        $Reader.Close()
+        $Writer.Close()
         }
         }
 
@@ -276,6 +276,28 @@ if ($wingetOk -and (Test-Path "$env:SystemRoot\Temp\Winget.msixbundle") -and (Ge
     }
 } else {
     Write-Log "winget download failed - direct download fallback will be used for apps" -Level Warning
+}
+
+# download ms store dependencies
+$storeDepsOk = Invoke-DownloadWithRetry -URL "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/f6def42b-5d31-4d2a-b6c8-07e410604257?P1=1774230322&P2=404&P3=2&P4=j%2b1QfIgI%2bAmztoH2VXyvD36e1sQYmuq6nxoqJlA3AVxTgwoMPJHq6%2bEieerY41lj4IfkPD1N%2faNo0HO%2baR1edg%3d%3d" -File "$env:SystemRoot\Temp\StoreDeps.msixbundle"
+if ($storeDepsOk -and (Test-Path "$env:SystemRoot\Temp\StoreDeps.msixbundle")) {
+    try {
+        Add-AppxPackage -Path "$env:SystemRoot\Temp\StoreDeps.msixbundle" -ForceApplicationShutdown -ErrorAction SilentlyContinue
+        Write-Log "MS Store dependencies installed"
+    } catch {
+        Write-Log "Failed to install MS Store dependencies" -Level Warning
+    }
+}
+
+# download snipping tool
+$snippingOk = Invoke-DownloadWithRetry -URL "http://tlu.dl.delivery.mp.microsoft.com/filestreamingservice/files/3cfbe560-b024-4a6b-8f67-2cdfdf1e4fe2?P1=1774229662&P2=404&P3=2&P4=J8GrWqSRLny0KhY4T%2bOxZGMWJ2ke9KbQ7ph7YIZSlUDoMKxns5MeRTtoZN6bgPOYa%2fxHum2ZJ3Re0gMTnoAWNA%3d%3d" -File "$env:SystemRoot\Temp\SnippingTool.msixbundle"
+if ($snippingOk -and (Test-Path "$env:SystemRoot\Temp\SnippingTool.msixbundle")) {
+    try {
+        Add-AppxPackage -Path "$env:SystemRoot\Temp\SnippingTool.msixbundle" -ForceApplicationShutdown -ErrorAction SilentlyContinue
+        Write-Log "Snipping Tool installed"
+    } catch {
+        Write-Log "Failed to install Snipping Tool" -Level Warning
+    }
 }
 
 # add winget to current session path if not already present
